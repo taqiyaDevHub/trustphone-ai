@@ -31,7 +31,7 @@ export default function RiskCheck() {
   const isValidImei = /^\d{15}$/.test(form.imei)
   const isValidPhone = /^\d{10,15}$/.test(form.seller_phone)
   const isValidPrice = (value) =>
-    value !== '' && !isNaN(value) && Number(value) >= 0
+    value !== '' && !isNaN(value) && Number(value) > 0
   const isValid =
     isValidImei &&
     isValidPhone &&
@@ -150,7 +150,7 @@ export default function RiskCheck() {
               <input
                 id="asking_price"
                 type="number"
-                min="0"
+                min="1"
                 step="0.01"
                 value={form.asking_price}
                 onChange={handleChange('asking_price')}
@@ -170,7 +170,7 @@ export default function RiskCheck() {
               <input
                 id="reference_market_price"
                 type="number"
-                min="0"
+                min="1"
                 step="0.01"
                 value={form.reference_market_price}
                 onChange={handleChange('reference_market_price')}
@@ -186,6 +186,13 @@ export default function RiskCheck() {
               <p className="text-sm font-medium text-red-400">{error}</p>
             </div>
           )}
+
+          <div className="rounded-lg bg-navy/50 p-4 ring-1 ring-border">
+            <p className="text-xs text-muted">
+              This assessment is based on available demo and synthetic data. It does
+              not guarantee safety or confirm fraud. Always exercise personal caution.
+            </p>
+          </div>
 
           <button
             type="submit"
@@ -278,6 +285,13 @@ export default function RiskCheck() {
               )}
             </>
           )}
+
+          <div className="mt-5 rounded-lg bg-navy/50 p-3 ring-1 ring-border">
+            <p className="text-xs text-muted">
+              Prototype disclaimer: This risk assessment is generated from synthetic
+              demo data. It does not guarantee device safety or confirm fraud.
+            </p>
+          </div>
         </div>
       )}
     </div>

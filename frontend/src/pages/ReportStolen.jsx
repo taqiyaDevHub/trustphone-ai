@@ -37,7 +37,13 @@ export default function ReportStolen() {
   const isValidImei = /^\d{15}$/.test(form.imei)
   const isValidPhone = /^\d{10,15}$/.test(form.contact_number)
   const isValid =
-    form.owner_name.trim().length > 0 && isValidPhone && isValidImei
+    form.owner_name.trim().length > 0 &&
+    isValidPhone &&
+    isValidImei &&
+    form.brand.trim().length > 0 &&
+    form.model.trim().length > 0 &&
+    form.incident_date.length > 0 &&
+    form.incident_location.trim().length > 0
 
   const handleChange = (field) => (e) => {
     let value = e.target.value
@@ -219,7 +225,7 @@ export default function ReportStolen() {
                   htmlFor="brand"
                   className="block text-sm font-medium text-white"
                 >
-                  Brand
+                  Brand <span className="text-red-400">*</span>
                 </label>
                 <input
                   id="brand"
@@ -236,7 +242,7 @@ export default function ReportStolen() {
                   htmlFor="model"
                   className="block text-sm font-medium text-white"
                 >
-                  Model
+                  Model <span className="text-red-400">*</span>
                 </label>
                 <input
                   id="model"
@@ -255,7 +261,7 @@ export default function ReportStolen() {
                 htmlFor="incident_date"
                 className="block text-sm font-medium text-white"
               >
-                Incident Date
+                Incident Date <span className="text-red-400">*</span>
               </label>
               <input
                 id="incident_date"
@@ -272,7 +278,7 @@ export default function ReportStolen() {
                 htmlFor="incident_location"
                 className="block text-sm font-medium text-white"
               >
-                Incident Location
+                Incident Location <span className="text-red-400">*</span>
               </label>
               <input
                 id="incident_location"
@@ -290,7 +296,7 @@ export default function ReportStolen() {
                 htmlFor="fir_number"
                 className="block text-sm font-medium text-white"
               >
-                FIR Number
+                FIR Number <span className="text-muted text-xs">(optional)</span>
               </label>
               <input
                 id="fir_number"
@@ -308,7 +314,7 @@ export default function ReportStolen() {
                 htmlFor="evidence"
                 className="block text-sm font-medium text-white"
               >
-                Evidence (Photo)
+                Evidence (Photo) <span className="text-muted text-xs">(optional)</span>
               </label>
               <input
                 ref={fileInputRef}

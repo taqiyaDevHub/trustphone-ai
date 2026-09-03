@@ -127,11 +127,17 @@ def compute_features(
     transaction_price = float(asking_price)
     market_price = float(reference_market_price)
 
-    # ---- 5. Price difference percentage ----
+    # ---- 5. Price deviation percentage (symmetric) ----
+    # Captures BOTH below-market AND above-market deviations equally.
+    # Formula: abs(asking - market) / market * 100
     if market_price > 0:
-        price_diff_pct = round(((market_price - transaction_price) / market_price) * 100, 2)
+        price_deviation_pct = round(
+            abs(transaction_price - market_price) / market_price * 100, 2
+        )
+        price_direction = "below" if transaction_price < market_price else "above"
     else:
-        price_diff_pct = 0.0
+        price_deviation_pct = 0.0
+        price_direction = "at"
 
     # ---- 6. IMEI status (encoded as in training data) ----
     # device_status was already resolved above
@@ -159,7 +165,7 @@ def compute_features(
         float(verified_count),
         transaction_price,
         market_price,
-        price_diff_pct,
+        price_deviation_pct,
         float(imei_status_code),
         seller_report_freq,
         information_completeness,
@@ -168,7 +174,8 @@ def compute_features(
     feature_dict = {
         "number_of_previous_reports": num_reports,
         "verified_report_count": verified_count,
-        "price_diff_pct": price_diff_pct,
+        "price_deviation_pct": price_deviation_pct,
+        "price_direction": price_direction,
         "device_status": device_status,
         "information_completeness": information_completeness,
     }
@@ -196,15 +203,34 @@ def _derive_key_factors(feature_dict: dict, risk_level: str) -> list[str]:
     elif status == "UNDER_REVIEW":
         factors.append("Device has a pending report under review")
 
-    pct = feature_dict["price_diff_pct"]
+    pct = feature_dict["price_deviation_pct"]
+    direction = feature_dict.get("price_direction", "at")
     if pct > 30:
-        factors.append(
-            "Asking price differs significantly from the reference price"
-        )
+        if direction == "below":
+            factors.append(
+                "Asking price is significantly below market value"
+            )
+        elif direction == "above":
+            factors.append(
+                "Asking price is significantly above market value"
+            )
+        else:
+            factors.append(
+                "Asking price differs significantly from the reference price"
+            )
     elif pct > 15:
-        factors.append(
-            "Asking price is moderately below the reference price"
-        )
+        if direction == "below":
+            factors.append(
+                "Asking price is moderately below market value"
+            )
+        elif direction == "above":
+            factors.append(
+                "Asking price is moderately above market value"
+            )
+        else:
+            factors.append(
+                "Asking price is moderately different from the reference price"
+            )
 
     if feature_dict["number_of_previous_reports"] > 0:
         factors.append(
@@ -258,8 +284,20 @@ def predict_risk(
     )
 
     # ---- Model prediction ----
-    probability = float(pipeline.predict_proba(features)[0][1])  # P(risk=1)
-    risk_score = int(round(probability * 100))
+    proba = pipeline.predict_proba(features)[0]  # per-class probabilities
+    classes = artifact.get("classes", [0, 1])
+
+    if artifact.get("multi_class"):
+        # Multi-class model: classes are [LOW=0, MEDIUM=1, HIGH=2]
+        # Compute weighted risk score: 0 * p_low + 50 * p_medium + 100 * p_high
+        _CLASS_SCORE = {0: 0, 1: 50, 2: 100}
+        risk_score = int(round(
+            sum(_CLASS_SCORE.get(int(c), 50) * p for c, p in zip(classes, proba))
+        ))
+    else:
+        # Legacy binary model: P(risk=1)
+        risk_score = int(round(float(proba[1]) * 100))
+
     risk_score = max(0, min(100, risk_score))  # clamp 0–100
 
     # ---- Risk level mapping ----
