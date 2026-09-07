@@ -1,6 +1,15 @@
+backend/trustphone.db
+*.db
+venv/
+.venv/
+env/
+.env
+.DS_Store
+.idea/
+.vscode/
 node_modules/
 dist/
+build/
 __pycache__/
 *.pyc
-.env
-backend/uploads/
+*.sqlite3

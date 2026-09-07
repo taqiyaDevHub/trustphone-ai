@@ -340,7 +340,7 @@ export default function VerifyPhone() {
           <p className="px-1 text-center text-xs leading-relaxed text-ink-faint">
             For additional official verification, you may check{' '}
             <a
-              href="https://web.cplc.app/mobile-lost-stolen/"
+              href="https://web.cplc.app/"
               target="_blank"
               rel="noopener noreferrer"
               className="font-medium text-ink-muted underline underline-offset-2 hover:text-primary-600"
