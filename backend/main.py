@@ -295,6 +295,60 @@ def _parse_incident_date(date_str: str) -> datetime:
     return datetime.now(timezone.utc)
 
 
+# Device statuses that represent an authoritative / already-confirmed state.
+# A single user-submitted report must NEVER downgrade or override these.
+_AUTHORITATIVE_DEVICE_STATUSES = {"STOLEN", "CLEAN", "BLOCKED", "SUSPICIOUS"}
+
+
+def _sync_device_record_under_review(
+    db: Session, imei: str, brand: str, model: str, report_reference: str
+) -> None:
+    """
+    Make a freshly reported IMEI visible to GET /api/verify/{imei} as
+    UNDER_REVIEW, without ever overriding authoritative data.
+
+    Decision rules (a single user report is NOT authoritative verification):
+      - No DeviceRecord for this IMEI yet -> CREATE one with status
+        UNDER_REVIEW, this report's reference, and the submitted brand/model.
+      - Existing status is authoritative (STOLEN / CLEAN / BLOCKED /
+        SUSPICIOUS) -> LEAVE IT UNTOUCHED (never downgrade a confirmed device).
+      - Existing status is already UNDER_REVIEW -> UPDATE its report_reference
+        and reported_date to point at this latest report.
+
+    The status is never set to STOLEN here; promotion to STOLEN is reserved
+    for a separate manual/admin review process.
+    """
+    existing: DeviceRecord | None = (
+        db.query(DeviceRecord)
+        .filter(DeviceRecord.imei_number == imei)
+        .first()
+    )
+    now = datetime.now(timezone.utc)
+
+    if existing is None:
+        db.add(
+            DeviceRecord(
+                imei_number=imei,
+                brand=brand,
+                model=model,
+                status="UNDER_REVIEW",
+                reported_date=now,
+                report_reference=report_reference,
+                source="TrustPhone AI Demo Database",
+            )
+        )
+        return
+
+    if existing.status in _AUTHORITATIVE_DEVICE_STATUSES:
+        # Never downgrade/override an already-confirmed device status.
+        return
+
+    # Already UNDER_REVIEW: refresh to reference the most recent report.
+    existing.status = "UNDER_REVIEW"
+    existing.report_reference = report_reference
+    existing.reported_date = now
+
+
 @app.post("/api/report-stolen")
 async def report_stolen(
     owner_name: str = Form(...),
@@ -387,10 +441,15 @@ async def report_stolen(
         verification_status="UNDER_REVIEW",
     )
     db.add(report)
-    db.commit()
 
-    # 6. NOTE: We deliberately do NOT change DeviceRecord.status to STOLEN.
-    #    A user-submitted report alone is not authoritative verification.
+    # 6. Sync a DeviceRecord so this IMEI becomes visible to Verify lookup as
+    #    UNDER_REVIEW. A single user report is NOT authoritative verification,
+    #    so this NEVER overrides a confirmed status and NEVER sets STOLEN.
+    _sync_device_record_under_review(
+        db, imei=imei, brand=brand, model=model, report_reference=report_ref
+    )
+
+    db.commit()
 
     return {
         "success": True,

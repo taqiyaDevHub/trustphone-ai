@@ -83,6 +83,22 @@ _STATUS_MIN_SELLER_FREQ: dict[str, float] = {
 
 
 # ---------------------------------------------------------------------------
+# Risk-level thresholds and business-rule floors
+# ---------------------------------------------------------------------------
+
+# Score -> level boundaries (inclusive upper bounds), kept as named constants
+# so the level mapping and the safeguard below can never drift apart.
+_LOW_MAX_SCORE = 30      # risk_score <= 30 -> LOW
+_MEDIUM_MAX_SCORE = 65   # risk_score <= 65 -> MEDIUM, otherwise HIGH
+
+# Business rule: a device explicitly flagged SUSPICIOUS must never be shown as
+# LOW risk. The floor is the smallest score that maps to MEDIUM, so the score
+# and the displayed level stay logically consistent. It depends ONLY on device
+# status (never on a specific asking/market price), so it holds for all prices.
+_SUSPICIOUS_MIN_SCORE = _LOW_MAX_SCORE + 1
+
+
+# ---------------------------------------------------------------------------
 # Feature computation
 # ---------------------------------------------------------------------------
 
@@ -301,12 +317,23 @@ def predict_risk(
     risk_score = max(0, min(100, risk_score))  # clamp 0–100
 
     # ---- Risk level mapping ----
-    if risk_score <= 30:
+    if risk_score <= _LOW_MAX_SCORE:
         risk_level = "LOW"
-    elif risk_score <= 65:
+    elif risk_score <= _MEDIUM_MAX_SCORE:
         risk_level = "MEDIUM"
     else:
         risk_level = "HIGH"
+
+    # ---- Business-rule safeguard (deterministic, applied after the model) ----
+    # A device flagged SUSPICIOUS in the records is never LOW risk, regardless
+    # of price. When the model places a fair-priced SUSPICIOUS device in the
+    # LOW band, lift the score to the bottom of the MEDIUM band and re-derive
+    # the level from that score so score and level remain consistent. Keyed
+    # only off device status, so it applies to every price scenario and leaves
+    # CLEAN / UNKNOWN / UNDER_REVIEW / STOLEN / BLOCKED completely untouched.
+    if feat_dict["device_status"] == "SUSPICIOUS" and risk_level == "LOW":
+        risk_score = _SUSPICIOUS_MIN_SCORE
+        risk_level = "MEDIUM"
 
     # ---- Key factors ----
     key_factors = _derive_key_factors(feat_dict, risk_level)

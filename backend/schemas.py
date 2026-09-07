@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # ---------------------------------------------------------------------------
@@ -78,9 +78,29 @@ class ScanImeiResponse(BaseModel):
 
 class RiskScoreRequest(BaseModel):
     imei: str = Field(..., min_length=15, max_length=15)
-    seller_phone: str = Field(..., min_length=1)
+    # OPTIONAL. The risk engine does not perform seller identity verification
+    # or real seller-history analysis, so this field is accepted for
+    # transaction context only and must never block a risk assessment.
+    seller_phone: Optional[str] = Field(None, max_length=15)
     asking_price: float = Field(..., gt=0)
     reference_market_price: float = Field(..., gt=0)
+
+    @field_validator("seller_phone")
+    @classmethod
+    def _normalize_seller_phone(cls, value: Optional[str]) -> Optional[str]:
+        """Treat blank input as "not provided"; validate format only if given.
+
+        Empty / whitespace-only values become None so the assessment proceeds.
+        A supplied value must be 10-15 digits (reasonable phone-number check).
+        """
+        if value is None:
+            return None
+        cleaned = value.strip()
+        if cleaned == "":
+            return None
+        if not cleaned.isdigit() or not (10 <= len(cleaned) <= 15):
+            raise ValueError("Seller phone number must contain 10 to 15 digits.")
+        return cleaned
 
 
 class RiskScoreResponse(BaseModel):

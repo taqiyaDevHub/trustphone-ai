@@ -1,56 +1,91 @@
 import { NavLink } from 'react-router-dom'
+import {
+  HomeIcon,
+  ShieldCheckIcon,
+  ScanLineIcon,
+  GaugeIcon,
+  FlagIcon,
+} from './icons'
 
 const navItems = [
-  { to: '/', label: 'Home' },
-  { to: '/verify', label: 'Verify Phone' },
-  { to: '/risk-check', label: 'AI Risk Check' },
-  { to: '/report-stolen', label: 'Report Stolen' },
+  { to: '/', label: 'Home', short: 'Home', Icon: HomeIcon },
+  { to: '/verify', label: 'Verify Phone', short: 'Verify', Icon: ShieldCheckIcon },
+  { to: '/scan-imei', label: 'Scan IMEI', short: 'Scan', Icon: ScanLineIcon },
+  { to: '/risk-check', label: 'AI Risk Check', short: 'Risk', Icon: GaugeIcon },
+  { to: '/report-stolen', label: 'Report Stolen', short: 'Report', Icon: FlagIcon },
 ]
 
 export default function Navigation() {
   return (
-    <header className="sticky top-0 z-10 border-b border-border bg-navy/95 backdrop-blur">
-      <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center justify-between">
-          <NavLink to="/" className="text-lg font-bold text-white">
-            TrustPhone AI
+    <>
+      {/* ---- Desktop / tablet header ---- */}
+      <header className="sticky top-0 z-40 border-b border-line/80 bg-white/80 backdrop-blur-md">
+        <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between px-4 sm:px-6 lg:px-8">
+          <NavLink
+            to="/"
+            className="flex items-center gap-2.5 rounded-lg"
+            aria-label="TrustPhone AI — home"
+          >
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary-600 to-teal-500 text-white shadow-sm shadow-primary-600/30">
+              <ShieldCheckIcon className="h-5 w-5" />
+            </span>
+            <span className="text-[17px] font-bold tracking-tight text-ink">
+              TrustPhone&nbsp;<span className="text-primary-600">AI</span>
+            </span>
           </NavLink>
-          <nav className="hidden sm:flex sm:gap-1">
-            {navItems.map((item) => (
+
+          <nav className="hidden items-center gap-1 md:flex" aria-label="Primary">
+            {navItems.map(({ to, label }) => (
               <NavLink
-                key={item.to}
-                to={item.to}
+                key={to}
+                to={to}
+                end={to === '/'}
                 className={({ isActive }) =>
-                  `rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                    isActive
-                      ? 'bg-border text-white'
-                      : 'text-muted hover:bg-border hover:text-white'
-                  }`
+                  `nav-link ${isActive ? 'nav-link-active' : ''}`
                 }
               >
-                {item.label}
+                {label}
               </NavLink>
             ))}
           </nav>
         </div>
-        <nav className="flex gap-1 overflow-x-auto border-t border-border py-2 sm:hidden">
-          {navItems.map((item) => (
+      </header>
+
+      {/* ---- Mobile bottom tab bar ---- */}
+      <nav
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-white/95 backdrop-blur-md md:hidden"
+        aria-label="Primary mobile"
+      >
+        <div className="mx-auto grid max-w-lg grid-cols-5 pb-[env(safe-area-inset-bottom)]">
+          {navItems.map(({ to, short, Icon }) => (
             <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                `whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-border text-white'
-                    : 'text-muted hover:bg-border hover:text-white'
-                }`
-              }
+              key={to}
+              to={to}
+              end={to === '/'}
+              className="relative flex min-w-0 flex-col items-center gap-1 px-1 pb-2 pt-2.5 text-[11px] font-medium"
             >
-              {item.label}
+              {({ isActive }) => (
+                <>
+                  {isActive && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute top-0 h-0.5 w-8 rounded-full bg-primary-600"
+                    />
+                  )}
+                  <Icon
+                    className={`h-[22px] w-[22px] ${
+                      isActive ? 'text-primary-600' : 'text-ink-faint'
+                    }`}
+                  />
+                  <span className={isActive ? 'font-semibold text-primary-600' : 'text-ink-muted'}>
+                    {short}
+                  </span>
+                </>
+              )}
             </NavLink>
           ))}
-        </nav>
-      </div>
-    </header>
+        </div>
+      </nav>
+    </>
   )
 }

@@ -1,5 +1,17 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { api } from '../services/api'
+import {
+  UploadIcon,
+  XIcon,
+  CheckCircleIcon,
+  AlertTriangleIcon,
+  AlertCircleIcon,
+  CopyIcon,
+  CheckIcon,
+  FlagIcon,
+  Spinner,
+} from '../components/icons'
 
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg']
 const MAX_SIZE_MB = 10
@@ -17,6 +29,7 @@ const VERIFICATION_CLASS = {
 }
 
 export default function ReportStolen() {
+  const [searchParams] = useSearchParams()
   const fileInputRef = useRef(null)
   const [form, setForm] = useState({
     owner_name: '',
@@ -29,10 +42,34 @@ export default function ReportStolen() {
     fir_number: '',
   })
   const [evidence, setEvidence] = useState(null)
+  const [evidencePreview, setEvidencePreview] = useState(null)
   const [evidenceError, setEvidenceError] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [result, setResult] = useState(null)
+  const [copied, setCopied] = useState(false)
+
+  // Reuses the app's existing ?imei= deep-link mechanism (same as Scan IMEI ->
+  // Verify Phone and Verify Phone -> Risk Check) to pre-fill ONLY the IMEI when
+  // arriving from the Verify Phone "Report This Stolen Phone" CTA. No other
+  // field is pre-filled or inferred; validation and submission are unchanged.
+  useEffect(() => {
+    const initial = searchParams.get('imei')
+    if (initial) {
+      const cleaned = initial.replace(/\D/g, '').slice(0, 15)
+      setForm((prev) => ({ ...prev, imei: cleaned }))
+    }
+  }, [searchParams])
+
+  useEffect(() => {
+    if (!evidence) {
+      setEvidencePreview(null)
+      return
+    }
+    const url = URL.createObjectURL(evidence)
+    setEvidencePreview(url)
+    return () => URL.revokeObjectURL(url)
+  }, [evidence])
 
   const isValidImei = /^\d{15}$/.test(form.imei)
   const isValidPhone = /^\d{10,15}$/.test(form.contact_number)
@@ -83,6 +120,25 @@ export default function ReportStolen() {
       return
     }
     setEvidence(file)
+  }
+
+  const handleRemoveEvidence = () => {
+    setEvidence(null)
+    setEvidenceError(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const handleCopyReference = async () => {
+    if (!result?.report_reference) return
+    try {
+      await navigator.clipboard.writeText(result.report_reference)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      /* clipboard unavailable — non-critical */
+    }
   }
 
   const handleSubmit = async (e) => {
@@ -152,284 +208,395 @@ export default function ReportStolen() {
   return (
     <div className="page-container">
       <h1 className="page-title">Report Stolen</h1>
-      <p className="mt-2 text-muted">
+      <p className="page-subtitle">
         Report a stolen phone with supporting details to help buyers avoid it.
       </p>
 
       {!result && (
-        <div className="card mt-6">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label
-                htmlFor="owner_name"
-                className="block text-sm font-medium text-white"
-              >
-                Owner Name <span className="text-red-400">*</span>
-              </label>
-              <input
-                id="owner_name"
-                type="text"
-                value={form.owner_name}
-                onChange={handleChange('owner_name')}
-                placeholder="Your full name"
-                className="input mt-2"
-                disabled={loading}
-              />
-            </div>
+        <div className="card mt-6 p-5 sm:p-7">
+          <p className="mb-6 text-xs text-ink-faint">
+            <span className="font-semibold text-red-500">*</span> Required
+          </p>
 
+          <form onSubmit={handleSubmit} className="space-y-8">
+            {/* ---- Your details ---- */}
             <div>
-              <label
-                htmlFor="contact_number"
-                className="block text-sm font-medium text-white"
-              >
-                Contact Number <span className="text-red-400">*</span>
-              </label>
-              <input
-                id="contact_number"
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={15}
-                value={form.contact_number}
-                onChange={handleChange('contact_number')}
-                placeholder="e.g. 03001234567"
-                className="input mt-2"
-                disabled={loading}
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="report-imei"
-                className="block text-sm font-medium text-white"
-              >
-                IMEI Number <span className="text-red-400">*</span>
-              </label>
-              <input
-                id="report-imei"
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={15}
-                value={form.imei}
-                onChange={handleChange('imei')}
-                placeholder="e.g. 351234567890123"
-                className="input mt-2 font-mono text-lg tracking-widest"
-                disabled={loading}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label
-                  htmlFor="brand"
-                  className="block text-sm font-medium text-white"
-                >
-                  Brand <span className="text-red-400">*</span>
-                </label>
-                <input
-                  id="brand"
-                  type="text"
-                  value={form.brand}
-                  onChange={handleChange('brand')}
-                  placeholder="e.g. Samsung"
-                  className="input mt-2"
-                  disabled={loading}
-                />
-              </div>
-              <div>
-                <label
-                  htmlFor="model"
-                  className="block text-sm font-medium text-white"
-                >
-                  Model <span className="text-red-400">*</span>
-                </label>
-                <input
-                  id="model"
-                  type="text"
-                  value={form.model}
-                  onChange={handleChange('model')}
-                  placeholder="e.g. Galaxy S21"
-                  className="input mt-2"
-                  disabled={loading}
-                />
+              <p className="section-label">Your Details</p>
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="owner_name" className="field-label">
+                    Owner Name
+                    <span className="field-required">*</span>
+                  </label>
+                  <input
+                    id="owner_name"
+                    type="text"
+                    value={form.owner_name}
+                    onChange={handleChange('owner_name')}
+                    placeholder="Your full name"
+                    className="input mt-2"
+                    disabled={loading}
+                    autoComplete="name"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="contact_number" className="field-label">
+                    Contact Number
+                    <span className="field-required">*</span>
+                  </label>
+                  <input
+                    id="contact_number"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={15}
+                    value={form.contact_number}
+                    onChange={handleChange('contact_number')}
+                    placeholder="e.g. 03001234567"
+                    className="input mt-2"
+                    disabled={loading}
+                    autoComplete="tel"
+                  />
+                </div>
               </div>
             </div>
 
-            <div>
-              <label
-                htmlFor="incident_date"
-                className="block text-sm font-medium text-white"
-              >
-                Incident Date <span className="text-red-400">*</span>
-              </label>
-              <input
-                id="incident_date"
-                type="date"
-                value={form.incident_date}
-                onChange={handleChange('incident_date')}
-                className="input mt-2"
-                disabled={loading}
-              />
+            {/* ---- Device details ---- */}
+            <div className="border-t border-line pt-6">
+              <p className="section-label">Device Details</p>
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label htmlFor="report-imei" className="field-label">
+                    IMEI Number
+                    <span className="field-required">*</span>
+                  </label>
+                  <div className="relative mt-2">
+                    <input
+                      id="report-imei"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={15}
+                      value={form.imei}
+                      onChange={handleChange('imei')}
+                      placeholder="e.g. 351234567890123"
+                      className="input input-mono pr-20"
+                      disabled={loading}
+                      autoComplete="off"
+                    />
+                    <span
+                      aria-hidden="true"
+                      className={`absolute right-3 top-1/2 -translate-y-1/2 rounded-md px-1.5 py-0.5 text-[11px] font-semibold tabular-nums ${
+                        isValidImei
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-slate-100 text-ink-faint'
+                      }`}
+                    >
+                      {form.imei.length}/15
+                    </span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="brand" className="field-label">
+                      Brand
+                      <span className="field-required">*</span>
+                    </label>
+                    <input
+                      id="brand"
+                      type="text"
+                      value={form.brand}
+                      onChange={handleChange('brand')}
+                      placeholder="e.g. Samsung"
+                      className="input mt-2"
+                      disabled={loading}
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="model" className="field-label">
+                      Model
+                      <span className="field-required">*</span>
+                    </label>
+                    <input
+                      id="model"
+                      type="text"
+                      value={form.model}
+                      onChange={handleChange('model')}
+                      placeholder="e.g. Galaxy S21"
+                      className="input mt-2"
+                      disabled={loading}
+                      autoComplete="off"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div>
-              <label
-                htmlFor="incident_location"
-                className="block text-sm font-medium text-white"
-              >
-                Incident Location <span className="text-red-400">*</span>
-              </label>
-              <input
-                id="incident_location"
-                type="text"
-                value={form.incident_location}
-                onChange={handleChange('incident_location')}
-                placeholder="e.g. Karachi, Sindh"
-                className="input mt-2"
-                disabled={loading}
-              />
+            {/* ---- Incident details ---- */}
+            <div className="border-t border-line pt-6">
+              <p className="section-label">Incident Details</p>
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="incident_date" className="field-label">
+                    Incident Date
+                    <span className="field-required">*</span>
+                  </label>
+                  <input
+                    id="incident_date"
+                    type="date"
+                    value={form.incident_date}
+                    onChange={handleChange('incident_date')}
+                    className="input mt-2"
+                    disabled={loading}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="incident_location" className="field-label">
+                    Incident Location
+                    <span className="field-required">*</span>
+                  </label>
+                  <input
+                    id="incident_location"
+                    type="text"
+                    value={form.incident_location}
+                    onChange={handleChange('incident_location')}
+                    placeholder="e.g. Karachi, Sindh"
+                    className="input mt-2"
+                    disabled={loading}
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label htmlFor="fir_number" className="field-label">
+                    FIR Number
+                    <span className="ml-1.5 text-xs font-normal text-ink-faint">
+                      (optional)
+                    </span>
+                  </label>
+                  <input
+                    id="fir_number"
+                    type="text"
+                    value={form.fir_number}
+                    onChange={handleChange('fir_number')}
+                    placeholder="e.g. FIR-123/2024"
+                    className="input mt-2"
+                    disabled={loading}
+                    autoComplete="off"
+                  />
+                </div>
+              </div>
             </div>
 
-            <div>
-              <label
-                htmlFor="fir_number"
-                className="block text-sm font-medium text-white"
-              >
-                FIR Number <span className="text-muted text-xs">(optional)</span>
-              </label>
-              <input
-                id="fir_number"
-                type="text"
-                value={form.fir_number}
-                onChange={handleChange('fir_number')}
-                placeholder="e.g. FIR-123/2024"
-                className="input mt-2"
-                disabled={loading}
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="evidence"
-                className="block text-sm font-medium text-white"
-              >
-                Evidence (Photo) <span className="text-muted text-xs">(optional)</span>
-              </label>
+            {/* ---- Evidence ---- */}
+            <div className="border-t border-line pt-6">
+              <p className="section-label">Evidence</p>
               <input
                 ref={fileInputRef}
                 id="evidence"
                 type="file"
                 accept="image/*"
                 onChange={handleFileChange}
-                className="mt-2 block w-full text-sm text-muted file:mr-4 file:rounded-lg file:border-0 file:bg-accent file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-700"
-                disabled={loading}
+                className="sr-only"
+                aria-label="Upload evidence photo"
               />
-              {evidence && (
-                <p className="mt-2 text-sm text-muted">
-                  Selected: {evidence.name}
-                </p>
+
+              {!evidence ? (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={loading}
+                  className="mt-4 flex w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50/60 px-4 py-8 text-center transition-colors hover:border-primary-300 hover:bg-primary-50/30 disabled:opacity-50"
+                >
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary-100 text-primary-600">
+                    <UploadIcon className="h-5 w-5" />
+                  </span>
+                  <span className="text-sm font-semibold text-ink">
+                    Add a photo of the box or receipt
+                  </span>
+                  <span className="text-xs text-ink-muted">
+                    Optional · JPG, PNG or WebP · up to {MAX_SIZE_MB} MB
+                  </span>
+                </button>
+              ) : (
+                <div className="mt-4 flex items-center gap-3 rounded-xl bg-slate-50/80 p-3 ring-1 ring-inset ring-line/70">
+                  {evidencePreview && (
+                    <img
+                      src={evidencePreview}
+                      alt="Evidence preview"
+                      className="h-14 w-14 shrink-0 rounded-lg object-cover ring-1 ring-line"
+                    />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-ink">
+                      {evidence.name}
+                    </p>
+                    <p className="text-xs text-ink-muted">
+                      {(evidence.size / 1024 / 1024).toFixed(2)} MB
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={loading}
+                    className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-primary-600 transition-colors hover:bg-primary-50"
+                  >
+                    Change
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRemoveEvidence}
+                    disabled={loading}
+                    aria-label="Remove evidence photo"
+                    className="rounded-lg p-1.5 text-ink-faint transition-colors hover:bg-red-50 hover:text-red-600"
+                  >
+                    <XIcon className="h-4 w-4" />
+                  </button>
+                </div>
               )}
+
               {evidenceError && (
-                <p className="mt-2 text-sm font-medium text-red-400">
+                <p
+                  className="mt-2 flex items-center gap-1.5 text-sm font-medium text-red-600"
+                  role="alert"
+                >
+                  <AlertTriangleIcon className="h-4 w-4 shrink-0" />
                   {evidenceError}
                 </p>
               )}
             </div>
 
             {error && (
-              <div className="rounded-lg bg-red-500/10 p-4 ring-1 ring-red-500/20">
-                <p className="text-sm font-medium text-red-400">{error}</p>
+              <div className="alert-error" role="alert">
+                <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
+                {error}
               </div>
             )}
 
             <button
               type="submit"
               disabled={loading || !isValid}
-              className="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-60"
+              className="btn-primary w-full"
             >
               {loading ? (
-                <span className="inline-flex items-center gap-2">
-                  <svg
-                    className="h-5 w-5 animate-spin"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                    />
-                  </svg>
+                <>
+                  <Spinner className="h-4 w-4" />
                   Submitting…
-                </span>
+                </>
               ) : (
-                'Submit Report'
+                <>
+                  <FlagIcon className="h-4 w-4" />
+                  Submit Report
+                </>
               )}
             </button>
           </form>
         </div>
       )}
 
+      {/* ---- Success state ---- */}
       {result && (
-        <div className="card mt-6">
-          <h2 className="text-lg font-semibold text-white">Report Submitted</h2>
+        <div className="card animate-scale-in mt-6 overflow-hidden" aria-live="polite">
+          <div className="flex items-center gap-4 bg-emerald-50 p-5 ring-1 ring-inset ring-emerald-200 sm:px-7">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600">
+              <CheckCircleIcon className="h-6 w-6" />
+            </span>
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-700/70">
+                Report Submitted
+              </p>
+              <p className="text-xl font-bold text-emerald-900">
+                Thank you for reporting
+              </p>
+            </div>
+          </div>
 
-          <dl className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <dt className="text-sm text-muted">Report Reference</dt>
-              <dd className="font-mono text-white">{result.report_reference}</dd>
+          <div className="space-y-6 p-5 sm:p-7">
+            {/* Reference number */}
+            <div className="flex items-center justify-between gap-3 rounded-xl bg-slate-50/80 px-4 py-3.5 ring-1 ring-inset ring-line/70">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
+                  Report Reference
+                </p>
+                <p className="mt-0.5 truncate font-mono text-lg font-bold text-ink">
+                  {result.report_reference}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCopyReference}
+                className="flex shrink-0 items-center gap-1.5 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-ink-soft ring-1 ring-line transition-colors hover:text-primary-600 hover:ring-primary-300"
+                aria-label="Copy report reference"
+              >
+                {copied ? (
+                  <>
+                    <CheckIcon className="h-3.5 w-3.5 text-emerald-600" />
+                    Copied
+                  </>
+                ) : (
+                  <>
+                    <CopyIcon className="h-3.5 w-3.5" />
+                    Copy
+                  </>
+                )}
+              </button>
             </div>
-            <div>
-              <dt className="text-sm text-muted">Submitted Date</dt>
-              <dd className="text-white">{result.submitted_date}</dd>
-            </div>
-            <div>
-              <dt className="text-sm text-muted">Verification Status</dt>
-              <dd>
-                <span
-                  className={
-                    VERIFICATION_CLASS[verificationStatusKey] || 'status-unknown'
-                  }
-                >
-                  {result.verification_status}
-                </span>
-              </dd>
-            </div>
-            <div>
-              <dt className="text-sm text-muted">Evidence Consistency</dt>
-              <dd>
-                <span
-                  className={
-                    EVIDENCE_CLASS[evidenceStatusKey] || 'status-unknown'
-                  }
-                >
-                  {result.evidence_consistency_status}
-                </span>
-              </dd>
-            </div>
-          </dl>
 
-          {result.message && (
-            <p className="mt-5 text-sm text-muted">{result.message}</p>
-          )}
+            {/* Status details */}
+            <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="rounded-xl bg-slate-50/80 px-4 py-3 ring-1 ring-inset ring-line/70">
+                <dt className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
+                  Submitted Date
+                </dt>
+                <dd className="mt-0.5 text-sm font-semibold text-ink">
+                  {result.submitted_date}
+                </dd>
+              </div>
+              <div className="rounded-xl bg-slate-50/80 px-4 py-3 ring-1 ring-inset ring-line/70">
+                <dt className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
+                  Verification Status
+                </dt>
+                <dd className="mt-1">
+                  <span
+                    className={
+                      VERIFICATION_CLASS[verificationStatusKey] ||
+                      'status-unknown'
+                    }
+                  >
+                    {result.verification_status}
+                  </span>
+                </dd>
+              </div>
+              <div className="rounded-xl bg-slate-50/80 px-4 py-3 ring-1 ring-inset ring-line/70 sm:col-span-2">
+                <dt className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
+                  Evidence Consistency
+                </dt>
+                <dd className="mt-1">
+                  <span
+                    className={
+                      EVIDENCE_CLASS[evidenceStatusKey] || 'status-unknown'
+                    }
+                  >
+                    {result.evidence_consistency_status}
+                  </span>
+                </dd>
+              </div>
+            </dl>
 
-          <button
-            type="button"
-            onClick={handleReset}
-            className="btn-secondary mt-5 w-full"
-          >
-            Submit Another Report
-          </button>
+            {result.message && (
+              <p className="text-sm leading-relaxed text-ink-soft">
+                {result.message}
+              </p>
+            )}
+
+            <button
+              type="button"
+              onClick={handleReset}
+              className="btn-secondary w-full"
+            >
+              Submit Another Report
+            </button>
+          </div>
         </div>
       )}
     </div>
