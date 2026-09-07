@@ -90,7 +90,7 @@ The risk-scoring model is trained on **synthetic demo data** for hackathon purpo
 ## Team Members
 
 * **Syeda Taqiya Noman** - Backend & Database Developer ([GitHub](https://github.com/taqiyaDevHub) | [LinkedIn](https://www.linkedin.com/in/syeda-taqiya-noman))
-* **Jawerya Shafi** - Frontend Developer & UI Contributor
+* **Jawerya Shafi** - Frontend Developer & UI Contributor ([GitHub](https://github.com/shafijaweria-create) | [LinkedIn](https://www.linkedin.com/in/jaweria-shafi-1706a329b))
 
 ## Hackathon
 
